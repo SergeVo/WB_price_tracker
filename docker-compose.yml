@@ -2,10 +2,27 @@ version: '3.8'
 
 services:
   bot:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: wb_price_bot
     volumes:
       - ./data:/app/data
+      - ./logs:/app/logs
     env_file:
       - .env
-    restart: unless-stopped 
+    environment:
+      - TZ=Europe/Moscow
+      - DB_DIR=/app/data
+      - LOG_DIR=/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sqlite3; sqlite3.connect('/app/data/bot_data.db')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3" 

@@ -50,24 +50,44 @@ TELEGRAM_TOKEN=your_bot_token_here
 CHECK_INTERVAL_MINUTES=180  # Интервал проверки в минутах (по умолчанию 180)
 ```
 
-3. Создайте директорию для данных:
-```bash
-mkdir -p data
-```
-
-4. Запустите бота в Docker:
+3. Запустите бота в Docker:
 ```bash
 docker-compose up -d
 ```
 
-5. Для просмотра логов:
+4. Для просмотра логов:
 ```bash
+# Логи контейнера
 docker-compose logs -f
+
+# Логи приложения
+tail -f logs/bot.log
 ```
 
-6. Для остановки бота:
+5. Для остановки бота:
 ```bash
 docker-compose down
+```
+
+6. Для пересборки и перезапуска:
+```bash
+docker-compose up -d --build
+```
+
+## Структура проекта
+
+```
+.
+├── bot.py              # Основной файл бота
+├── config.py           # Конфигурация
+├── database.py         # Работа с базой данных
+├── wb_parser.py        # Парсер Wildberries
+├── requirements.txt    # Зависимости
+├── Dockerfile         # Конфигурация Docker
+├── docker-compose.yml # Конфигурация Docker Compose
+├── .env               # Переменные окружения
+├── data/              # Директория для базы данных
+└── logs/              # Директория для логов
 ```
 
 ## Использование
