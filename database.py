@@ -45,6 +45,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 check_interval INTEGER DEFAULT 180,
+                last_check_time TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -283,6 +284,63 @@ def get_all_user_intervals():
     finally:
         if conn:
             conn.close()
+
+
+def get_last_check_time(user_id):
+    """Получение времени последней проверки пользователя"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT last_check_time FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        result = cursor.fetchone()
+        
+        if result and result['last_check_time']:
+            return datetime.fromisoformat(result['last_check_time'])
+        return None
+    except Exception as e:
+        logger.error(f"Ошибка при получении времени последней проверки: {e}")
+        return None
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception as close_error:
+                logger.error(f"Ошибка при закрытии соединения: {close_error}")
+
+
+def update_last_check_time(user_id, check_time):
+    """Обновление времени последней проверки пользователя"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE users
+            SET last_check_time = ?
+            WHERE user_id = ?
+        ''', (check_time.isoformat(), user_id))
+        
+        conn.commit()
+        logger.info(f"Время последней проверки обновлено для пользователя {user_id}")
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении времени последней проверки: {e}")
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception as rollback_error:
+                logger.error(f"Ошибка при откате транзакции: {rollback_error}")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception as close_error:
+                logger.error(f"Ошибка при закрытии соединения: {close_error}")
 
 
 # Инициализация базы данных при импорте модуля

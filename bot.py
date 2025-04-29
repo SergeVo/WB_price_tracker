@@ -14,8 +14,11 @@ from database import (
     remove_product,
     update_product_price,
     get_all_products,
-    get_all_user_intervals
+    get_all_user_intervals,
+    get_last_check_time,
+    update_last_check_time
 )
+from datetime import datetime
 
 # Настройка логирования
 logging.basicConfig(
@@ -206,9 +209,22 @@ def check_prices():
     total_products = sum(len(products) for products in tracked_products.values())
     logger.info(f"Проверка {total_products} товаров")
     
+    current_time = datetime.now()
+    
     for user_id, user_products in tracked_products.items():
         try:
             interval = user_intervals.get(user_id, DEFAULT_INTERVAL)
+            
+            # Проверяем, прошло ли достаточно времени с последней проверки
+            last_check = get_last_check_time(user_id)
+            if last_check and (current_time - last_check).total_seconds() < interval * 60:
+                logger.info(
+                    f"Пропуск проверки для пользователя {user_id}: "
+                    f"прошло {(current_time - last_check).total_seconds() / 60:.1f} минут "
+                    f"из {interval} минут"
+                )
+                continue
+            
             logger.info(
                 f"Проверка товаров пользователя {user_id} "
                 f"(интервал: {interval} минут)"
@@ -265,6 +281,9 @@ def check_prices():
                         
                 except Exception as e:
                     logger.error(f"Ошибка при проверке товара {article}: {e}")
+            
+            # Обновляем время последней проверки
+            update_last_check_time(user_id, current_time)
                     
         except Exception as e:
             logger.error(f"Ошибка при проверке товаров пользователя {user_id}: {e}")
