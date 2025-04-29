@@ -10,28 +10,29 @@ RUN apt-get update && \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
+# Создаем непривилегированного пользователя
+RUN useradd -m -u 1000 botuser
+
+# Создаем необходимые директории и устанавливаем права
+RUN mkdir -p /app/data /app/logs && \
+    chown -R botuser:botuser /app && \
+    chmod -R 755 /app && \
+    chmod -R 777 /app/data /app/logs
+
 # Копируем файлы зависимостей
-COPY requirements.txt .
+COPY --chown=botuser:botuser requirements.txt .
 
 # Устанавливаем зависимости
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем исходный код
-COPY . .
-
-# Создаем необходимые директории
-RUN mkdir -p /app/data /app/logs && \
-    chmod -R 777 /app/data /app/logs
+COPY --chown=botuser:botuser . .
 
 # Устанавливаем переменные окружения
 ENV PYTHONUNBUFFERED=1 \
     TZ=Europe/Moscow \
     DB_DIR=/app/data \
     LOG_DIR=/app/logs
-
-# Создаем непривилегированного пользователя
-RUN useradd -m -u 1000 botuser && \
-    chown -R botuser:botuser /app
 
 # Переключаемся на непривилегированного пользователя
 USER botuser

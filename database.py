@@ -10,13 +10,34 @@ DB_DIR = os.getenv('DB_DIR', 'data')
 DB_FILE = os.path.join(DB_DIR, 'bot_data.db')
 
 # Создаем директорию для базы данных, если она не существует
-os.makedirs(DB_DIR, exist_ok=True)
+try:
+    os.makedirs(DB_DIR, exist_ok=True)
+    logger.info(f"Директория {DB_DIR} создана или уже существует")
+except Exception as e:
+    logger.error(f"Ошибка при создании директории {DB_DIR}: {e}")
+    raise
+
+
+def get_db_connection():
+    """Создание соединения с базой данных"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except Exception as e:
+        logger.error(f"Ошибка при создании соединения с базой данных: {e}")
+        raise
 
 
 def init_db():
     """Инициализация базы данных"""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
+        # Проверяем права доступа к директории
+        if not os.access(DB_DIR, os.W_OK):
+            raise PermissionError(f"Нет прав на запись в директорию {DB_DIR}")
+        
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # Создаем таблицу пользователей
@@ -48,14 +69,25 @@ def init_db():
         logger.info("База данных успешно инициализирована")
     except Exception as e:
         logger.error(f"Ошибка при инициализации базы данных: {e}")
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception as rollback_error:
+                logger.error(f"Ошибка при откате транзакции: {rollback_error}")
+        raise
     finally:
-        conn.close()
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception as close_error:
+                logger.error(f"Ошибка при закрытии соединения: {close_error}")
 
 
 def get_user_interval(user_id):
     """Получение интервала проверки пользователя"""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute(
@@ -65,19 +97,21 @@ def get_user_interval(user_id):
         result = cursor.fetchone()
         
         if result:
-            return result[0]
+            return result['check_interval']
         return 180  # Значение по умолчанию
     except Exception as e:
         logger.error(f"Ошибка при получении интервала пользователя: {e}")
         return 180
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def set_user_interval(user_id, interval):
     """Установка интервала проверки пользователя"""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -89,14 +123,18 @@ def set_user_interval(user_id, interval):
         logger.info(f"Интервал пользователя {user_id} установлен на {interval} минут")
     except Exception as e:
         logger.error(f"Ошибка при установке интервала пользователя: {e}")
+        if conn:
+            conn.rollback()
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def get_user_products(user_id):
     """Получение товаров пользователя"""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -107,11 +145,10 @@ def get_user_products(user_id):
         
         products = {}
         for row in cursor.fetchall():
-            article, url, name, price = row
-            products[article] = {
-                'url': url,
-                'name': name,
-                'price': price
+            products[row['article']] = {
+                'url': row['url'],
+                'name': row['name'],
+                'price': row['price']
             }
         
         return products
@@ -119,13 +156,15 @@ def get_user_products(user_id):
         logger.error(f"Ошибка при получении товаров пользователя: {e}")
         return {}
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def add_product(user_id, article, url, name, price):
     """Добавление товара"""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -138,14 +177,18 @@ def add_product(user_id, article, url, name, price):
         logger.info(f"Товар {article} добавлен для пользователя {user_id}")
     except Exception as e:
         logger.error(f"Ошибка при добавлении товара: {e}")
+        if conn:
+            conn.rollback()
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def remove_product(user_id, article):
     """Удаление товара"""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -157,14 +200,18 @@ def remove_product(user_id, article):
         logger.info(f"Товар {article} удален у пользователя {user_id}")
     except Exception as e:
         logger.error(f"Ошибка при удалении товара: {e}")
+        if conn:
+            conn.rollback()
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def update_product_price(user_id, article, new_price):
     """Обновление цены товара"""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -177,14 +224,18 @@ def update_product_price(user_id, article, new_price):
         logger.info(f"Цена товара {article} обновлена для пользователя {user_id}")
     except Exception as e:
         logger.error(f"Ошибка при обновлении цены товара: {e}")
+        if conn:
+            conn.rollback()
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def get_all_products():
     """Получение всех товаров"""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -194,13 +245,13 @@ def get_all_products():
         
         products = {}
         for row in cursor.fetchall():
-            user_id, article, url, name, price = row
+            user_id = row['user_id']
             if user_id not in products:
                 products[user_id] = {}
-            products[user_id][article] = {
-                'url': url,
-                'name': name,
-                'price': price
+            products[user_id][row['article']] = {
+                'url': row['url'],
+                'name': row['name'],
+                'price': row['price']
             }
         
         return products
@@ -208,28 +259,30 @@ def get_all_products():
         logger.error(f"Ошибка при получении всех товаров: {e}")
         return {}
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def get_all_user_intervals():
     """Получение интервалов всех пользователей"""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute('SELECT user_id, check_interval FROM users')
         
         intervals = {}
         for row in cursor.fetchall():
-            user_id, interval = row
-            intervals[user_id] = interval
+            intervals[row['user_id']] = row['check_interval']
         
         return intervals
     except Exception as e:
         logger.error(f"Ошибка при получении интервалов пользователей: {e}")
         return {}
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 # Инициализация базы данных при импорте модуля
