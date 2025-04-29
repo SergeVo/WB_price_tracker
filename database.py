@@ -29,6 +29,33 @@ def get_db_connection():
         raise
 
 
+def migrate_db():
+    """Миграция базы данных"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Проверяем наличие колонки last_check_time
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'last_check_time' not in columns:
+            cursor.execute('''
+                ALTER TABLE users
+                ADD COLUMN last_check_time TIMESTAMP
+            ''')
+            conn.commit()
+            logger.info("Добавлена колонка last_check_time в таблицу users")
+    except Exception as e:
+        logger.error(f"Ошибка при миграции базы данных: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
 def init_db():
     """Инициализация базы данных"""
     conn = None
@@ -68,6 +95,9 @@ def init_db():
         
         conn.commit()
         logger.info("База данных успешно инициализирована")
+        
+        # Выполняем миграцию
+        migrate_db()
     except Exception as e:
         logger.error(f"Ошибка при инициализации базы данных: {e}")
         if conn is not None:
